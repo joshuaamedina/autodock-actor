@@ -2,7 +2,7 @@
 
 * The following actor takes an input message as follows:
 
-<span style="font-family:Papyrus; font-size:4em;">"agave://cloud.corral.work.joshuaam/ls6/autodock-collab/input/receptors/1iep_receptor.pdbqt 16 52 17 20 20 20 vina flexible THR315 /scratch/02875/docking/test/benchmarks/Enamine-HTSC/10000_set"</span>
+<span style="font-size:2em;">"agave://cloud.corral.work.joshuaam/ls6/autodock-collab/input/receptors/1iep_receptor.pdbqt 16 52 17 20 20 20 vina flexible THR315 /scratch/02875/docking/test/benchmarks/Enamine-HTSC/10000_set"</span>
 
 * The actor will check if the file provided is a pdbqt or pdb file.
 
