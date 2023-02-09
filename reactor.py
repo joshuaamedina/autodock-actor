@@ -5,69 +5,136 @@ from reactors.utils import Reactor, agaveutils
 from agavepy.agave import Agave
 
 
-def fileDownload(r):
+def fileDownload(r,filename):
 
-    print(r.client)
-    print(r.context)
-    print(agaveutils.from_agave_uri(uri='agave://cloud.corral.work.joshuaam/ls6/autodock-collab/input/receptors/1iep_receptor.pdbqt'))
-    print(f'-----------------------------')
-    storage = 'cloud.corral.work.joshuaam'
-    mpath = '/ls6/autodock-collab/input/receptors/1iep_receptor.pdbqt'
-    mfile = agaveutils.agave_download_file(agaveClient=r.client,agaveAbsolutePath=mpath,systemId=storage,localFilename='1iep_receptor.pdbqt')
+    storage, mpath, localFilename = agaveutils.from_agave_uri(uri=filename)
+    mpath = mpath + '/' + localFilename
+    mfile = agaveutils.agave_download_file(agaveClient=r.client,agaveAbsolutePath=mpath,systemId=storage,localFilename=localFilename)
     if mfile is None:
         print("Failed")
     else:
         print("Downloaded")
 
-    f = open('1iep_receptor.pdbqt','r')
-    print(f.read())
+def setParallelism(library):
+    nodes = 1
+    processes = 32
+    if library == "/scratch/02875/docking/test/Enamine-PC/Enamine-PC/test_sets/test":
+        nodes = 1 
+        processes = 32
+    if library == "/scratch/02875/docking/test/benchmarks/Enamine-HTSC/10000_set":
+        nodes = 10 
+        processes = 320
+    if library == "/scratch/02875/docking/test/benchmarks/ZINC-in-trials/10000_set":
+        nodes = 2 
+        processes = 64
 
+    return nodes, processes
+        
 def main():
     r = Reactor()
-    fileDownload(r)    
     context = get_context()
     message = context['raw_message']
     paramlist = message.split(' ')
-    print(paramlist)
-
     print("Actor received message: {}".format(message))
 
-    # Usually, one would perform some input validation before submitting
-    # a job to a Tapis App. Here, we simply validate that the path looks
-    # like a Tapis/Agave URI
+    # Parse all parameters from the actor's message
 
     protein = paramlist[0]
+    newProtein = protein.split('/')
+    position = len(newProtein) - 1
+    filename = newProtein[position]
+
     center_x = float(paramlist[1])
     center_y = float(paramlist[2])
     center_z = float(paramlist[3])
     size_x = float(paramlist[4])
     size_y = float(paramlist[5])
     size_z = float(paramlist[6])
+    forcefield = paramlist[7]
+    docking = paramlist[8]
 
-    assert (size_x <= 30 and size_y <= 30 and size_z <=30), "box size is outside the bounds (30)" 
+    flexible = False
+    if docking == "rigid":
+        flexible = False
+    elif docking == "flexible":
+        flexible = True
+        sidechains = paramlist[9].split('_')
+    library = paramlist[10]
+
+    # Pass the Reactor instance and file to fileDownload to be downloaded for processing.
+    # Pass the library to setParallelism to get appropriate # of Nodes and Processes
+    nodes, processes = setParallelism(library)
+    fileDownload(r,protein)
+
+    # Check the bounds of our box
+    # Check the file passed is an agave link
+    # Check the file passed ends with .pdb or .pdbqt
+
+    for size in [size_x,size_y,size_z]:
+        assert (size <= 30 and size >= 1), "box size is outside the bounds (1-30)" 
     assert protein.startswith('agave://')
     assert (protein.endswith('.pdb') or protein.endswith('.pdbqt')), "Please provide a .pdb or .pdbqt file"
-   
-    print(f'{message} was accepted')
 
-    # Get an active Tapis client
-    #client = get_client()
-   
+    # If our file is appropriate, create our center bounds
+    # Check the user's provided bounds
+    # Check the user's provided flexible sidechain
 
-"""
-   # Using our Tapis client, submit a job to Tapis App eho-fastqc-0.11.9
-   body = {
-      "name": "fastqc-test",
-      "appId": "eho-fastqc-0.11.9",
-      "archive": False,
-      "inputs": {
-         "fastq": "agave://eho.work.storage/{}".format(os.path.basename(fastq_uri))
-      }
-   }
-   response = client.jobs.submit(body=body)
-   print("Successfully submitted job {} to Tapis App {}".format(response['id'], 
-response['appId']))
-"""
+    if(protein.endswith('.pdbqt')):
+        all_sidechains = []
+        xbounds = []
+        ybounds = []
+        zbounds = []
+        with open(filename, 'r') as r:
+            line = r.readline()
+            while line:
+                line = r.readline()
+                if line.startswith('ATOM'):
+                    xbounds.append(float(line.split()[6]))
+                    ybounds.append(float(line.split()[7]))
+                    zbounds.append(float(line.split()[8]))
+                    all_sidechains.append(line.split()[3] + line.split()[5])
+        if flexible == True:
+            for sidechain in sidechains:
+                assert (sidechain in all_sidechains), "Please provide valid flexible sidechain names, separated by underscores (e.g. THR315_GLU268)"
+        assert(min(xbounds)) <= center_x <= (max(xbounds)), "Center x coordinate is not within bounds"            
+        assert(min(ybounds)) <= center_y <= (max(ybounds)), "Center y coordinate is not within bounds"
+        assert(min(zbounds)) <= center_z <= (max(zbounds)), "Center z coordinate is not within bounds"
+    
+    print("We would continue to job submission here with : ", nodes, " nodes and " , processes, " processes!")
+
+'''
+    #Get an active Tapis client
+    client = get_client()
+    body = {
+        "name": "Autodock-Vina-Actor",
+        "appId": "Autodock-Vina-1.2.3",
+        "batchQueue": "normal",
+        "maxRunTime": "03:00:00",
+        "memoryPerNode": "1GB",
+        "nodeCount": nodes,
+        "processorsPerNode": processes,
+        "archive": False,
+        "inputs": {
+            "receptor": "{protein}"
+        },
+        "parameters": {
+            "center_x": center_x,
+            "center_y": center_y,
+            "center_z": center_z,
+            "size_x": size_x,
+            "size_y": size_y,
+            "size_z": size_z,
+            "forcefield": forcefield,
+            "docking": docking,
+            "library": library,
+            "top_n_scores": 5
+            "sidechains": paramlist[9]
+        }
+    }
+
+    response = client.jobs.submit(body=body)
+    print("Successfully submitted job {} to Tapis App {}".format(response['id'], response['appId']))
+'''
 
 if __name__ == '__main__':
     main()
