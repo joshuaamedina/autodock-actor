@@ -92,6 +92,8 @@ def main():
     '''
     if(protein.endswith('.pdb')):
         subprocess.run(["prepare_receptor {filename}"],shell=True)
+        filename = filename.split('.')[0]
+        filename = filename + '.pdbqt'
     '''
 
     # If our file is appropriate, create our center bounds
