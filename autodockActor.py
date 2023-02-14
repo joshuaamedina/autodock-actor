@@ -79,7 +79,7 @@ def main():
 
     for size in [size_x,size_y,size_z]:
         assert (size <= 30 and size >= 1), "box size is outside the bounds (1-30)" 
-    assert protein.startswith('agave://')
+    assert protein.startswith('agave://'), "Please provide an agave link for receptor input"
     assert (protein.endswith('.pdb') or protein.endswith('.pdbqt')), "Please provide a .pdb or .pdbqt file"
 
     # Pass the Reactor instance and file to fileDownload to be downloaded for processing.
@@ -94,6 +94,8 @@ def main():
         subprocess.run(["prepare_receptor {filename}"],shell=True)
         filename = filename.split('.')[0]
         filename = filename + '.pdbqt'
+        protein = filename
+        assert os.path.isfile(filename), "The receptor failed to prepare"
     '''
 
     # If our file is appropriate, create our center bounds
