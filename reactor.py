@@ -18,17 +18,22 @@ def fileDownload(r,filename):
 def setParallelism(library):
     nodes = 1
     processes = 32
+    maxRunTime = "03:00:00"
+
     if library == "/scratch/02875/docking/test/Enamine-PC/Enamine-PC/test_sets/test":
         nodes = 1 
         processes = 32
+        maxRunTime = "00:05:00"
     if library == "/scratch/02875/docking/test/benchmarks/Enamine-HTSC/10000_set":
         nodes = 10 
         processes = 320
+        maxRunTime = "02:00:00"
     if library == "/scratch/02875/docking/test/benchmarks/ZINC-in-trials/10000_set":
         nodes = 2 
         processes = 64
+        maxRunTime = "04:00:00"        
 
-    return nodes, processes
+    return nodes, processes, maxRunTime
         
 def main():
     r = Reactor()
@@ -61,11 +66,6 @@ def main():
         sidechains = paramlist[9].split('_')
     library = paramlist[10]
 
-    # Pass the Reactor instance and file to fileDownload to be downloaded for processing.
-    # Pass the library to setParallelism to get appropriate # of Nodes and Processes
-    nodes, processes = setParallelism(library)
-    fileDownload(r,protein)
-
     # Check the bounds of our box
     # Check the file passed is an agave link
     # Check the file passed ends with .pdb or .pdbqt
@@ -74,6 +74,15 @@ def main():
         assert (size <= 30 and size >= 1), "box size is outside the bounds (1-30)" 
     assert protein.startswith('agave://')
     assert (protein.endswith('.pdb') or protein.endswith('.pdbqt')), "Please provide a .pdb or .pdbqt file"
+
+    # Pass the Reactor instance and file to fileDownload to be downloaded for processing.
+    # Pass the library to setParallelism to get appropriate # of Nodes and Processes.
+    
+    nodes, processes, maxRunTime = setParallelism(library)
+    fileDownload(r,protein)
+
+    if(protein.endswith('.pdb')):
+        subprocess.run(["prepare_receptor {filename}"],shell=True)
 
     # If our file is appropriate, create our center bounds
     # Check the user's provided bounds
@@ -109,7 +118,7 @@ def main():
         "name": "Autodock-Vina-Actor",
         "appId": "Autodock-Vina-1.2.3",
         "batchQueue": "normal",
-        "maxRunTime": "03:00:00",
+        "maxRunTime": maxRunTime,
         "memoryPerNode": "1GB",
         "nodeCount": nodes,
         "processorsPerNode": processes,
